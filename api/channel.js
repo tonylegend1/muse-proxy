@@ -24,12 +24,42 @@ async function yt(endpoint, params, apiKey) {
 
 async function resolveChannelId(ref, type, apiKey) {
   if (type === 'id') return ref;
+
+  // Try forHandle (strip leading @ if present — YouTube API accepts both but is inconsistent)
   if (type === 'handle') {
-    const data = await yt('channels', { part: 'id', forHandle: ref }, apiKey);
-    if (data.items?.[0]) return data.items[0].id;
+    const clean = ref.startsWith('@') ? ref.slice(1) : ref;
+    // Attempt 1: with @
+    try {
+      const data = await yt('channels', { part: 'id', forHandle: `@${clean}` }, apiKey);
+      if (data.items?.[0]) return data.items[0].id;
+    } catch (e) { /* fall through */ }
+    // Attempt 2: without @
+    try {
+      const data = await yt('channels', { part: 'id', forHandle: clean }, apiKey);
+      if (data.items?.[0]) return data.items[0].id;
+    } catch (e) { /* fall through */ }
+    // Attempt 3: forUsername (legacy, for older channels)
+    try {
+      const data = await yt('channels', { part: 'id', forUsername: clean }, apiKey);
+      if (data.items?.[0]) return data.items[0].id;
+    } catch (e) { /* fall through */ }
   }
-  const data = await yt('search', { part: 'snippet', q: ref, type: 'channel', maxResults: '1' }, apiKey);
-  return data.items?.[0]?.id?.channelId || null;
+
+  // Final fallback: search
+  const clean = ref.startsWith('@') ? ref.slice(1) : ref;
+  const data = await yt('search', { part: 'snippet', q: clean, type: 'channel', maxResults: '5' }, apiKey);
+  if (!data.items?.length) return null;
+
+  // Prefer exact match on custom URL / title if we can find one
+  const wanted = clean.toLowerCase();
+  for (const item of data.items) {
+    const title = (item.snippet?.channelTitle || '').toLowerCase().replace(/\s+/g, '');
+    if (title === wanted || title.includes(wanted) || wanted.includes(title)) {
+      return item.id.channelId;
+    }
+  }
+  // Otherwise return top result
+  return data.items[0].id.channelId;
 }
 
 function computeVelocity(views, publishedAt) {
