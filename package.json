@@ -1,0 +1,9 @@
+{
+  "name": "muse-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tiny Vercel serverless proxy for Muse Studio — forwards YouTube Data API calls without exposing the API key in the browser.",
+  "engines": {
+    "node": "20.x"
+  }
+}
